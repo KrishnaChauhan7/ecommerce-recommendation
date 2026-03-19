@@ -8,7 +8,7 @@ const ProductCard = ({ product }) => {
       />
 
       <h4 className="product-name">{product["Product Name"]}</h4>
-      <p className="product-price">₹{product["Product Price"]}</p>
+      <p className="product-price">${product["Product Price"]}</p>
       <p className="product-rating">⭐ {product["Product Rating"]}</p>
     </div>
   );

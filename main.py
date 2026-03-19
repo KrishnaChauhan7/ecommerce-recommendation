@@ -1,38 +1,45 @@
-import faiss
-import numpy as np
+import os
 import pandas as pd
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
+from pinecone import Pinecone
+from dotenv import load_dotenv
 
+env_path = os.path.join(os.path.dirname(__file__), "Backend.env")
+load_dotenv(dotenv_path=env_path)
 # -----------------------------------
 # 🚀 Initialize FastAPI App
 # -----------------------------------
 app = FastAPI(title="Walmart Product Recommendation API")
 
 # -----------------------------------
-# 🌐 Enable CORS (IMPORTANT)
+# 🌐 Enable CORS
 # -----------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow frontend (React)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # -----------------------------------
-# 📦 Load Data & FAISS Index
+# 🔑 Pinecone Setup
 # -----------------------------------
-print("🔄 Loading FAISS index...")
-index = faiss.read_index("product_index.faiss")
+print("🔄 Connecting to Pinecone...")
 
+pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+index = pc.Index("product-recommendation")  # your index name
+
+
+# -----------------------------------
+# 📦 Load Product Data (optional but useful)
+# -----------------------------------
 print("🔄 Loading product data...")
 df = pd.read_pickle("product_data.pkl")
 
-# -----------------------------------
-# 🧹 Clean Image URLs
-# -----------------------------------
+# Clean image URLs
 df["Product Image Url"] = (
     df["Product Image Url"]
     .astype(str)
@@ -41,7 +48,6 @@ df["Product Image Url"] = (
     .str.strip()
 )
 
-# Optional: fill missing values
 df.fillna({
     "Product Name": "Unknown",
     "Product Price": 0,
@@ -50,50 +56,56 @@ df.fillna({
 }, inplace=True)
 
 # -----------------------------------
-# 🤖 Load Embedding Model
+# 🤖 Load Model
 # -----------------------------------
-print("🔄 Loading Sentence Transformer model...")
+print("🔄 Loading model...")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # -----------------------------------
-# 🧠 Recommendation Function
+# 🧠 Recommendation Function (PINECONE)
 # -----------------------------------
-def recommend_products(query: str, top_n: int = 5):
+def recommend_products(query: str, top_n: int = 8):
 
-    # Convert query to embedding
-    query_vector = model.encode([query]).astype("float32")
+    # Convert query → embedding
+    query_vector = model.encode(query).tolist()
 
-    # Search FAISS index
-    distances, indices = index.search(query_vector, top_n)
+    # Query Pinecone (only need IDs)
+    results = index.query(
+        vector=query_vector,
+        top_k=top_n,
+        include_metadata=False
+    )
 
-    # Fetch products
-    results = df.iloc[indices[0]]
+    recommendations = []
 
-    # Select relevant columns
-    results = results[[
-        "Product Name",
-        "Product Price",
-        "Product Rating",
-        "Product Image Url"
-    ]]
+    for match in results["matches"]:
+        idx = int(match["id"])  # 👈 KEY CHANGE
 
-    return results.to_dict(orient="records")
+        product = df.iloc[idx]  # 👈 fetch from dataframe
+
+        recommendations.append({
+            "Product Name": product["Product Name"],
+            "Product Price": product["Product Price"],
+            "Product Rating": product["Product Rating"],
+            "Product Image Url": product["Product Image Url"],
+            "score": match["score"]
+        })
+
+    return recommendations
 
 # -----------------------------------
 # 📡 API Endpoints
 # -----------------------------------
 
-# Health check
 @app.get("/")
 def home():
-    return {"message": "🚀 API is running!"}
+    return {"message": "🚀 API is running with Pinecone!"}
 
 
-# Recommendation endpoint
 @app.get("/recommend")
 def recommend(
-    query: str = Query(..., description="Search query"),
-    top_n: int = Query(5, description="Number of recommendations")
+    query: str = Query(...),
+    top_n: int = Query(5)
 ):
     try:
         recommendations = recommend_products(query, top_n)
@@ -105,6 +117,4 @@ def recommend(
         }
 
     except Exception as e:
-        return {
-            "error": str(e)
-        }
+        return {"error": str(e)}
