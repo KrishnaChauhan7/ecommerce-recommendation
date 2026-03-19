@@ -5,6 +5,7 @@ export const useRecommendations = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  console.log(import.meta.env.VITE_API_URL);
   const getRecommendations = async (query) => {
     try {
       setLoading(true);
