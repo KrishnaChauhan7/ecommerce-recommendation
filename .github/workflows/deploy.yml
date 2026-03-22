@@ -23,14 +23,14 @@ jobs:
       # ✅ BACKEND FIX (IMPORTANT)
       - name: Build & Push Backend
         run: |
-          docker build -t ${{ secrets.DOCKER_NAME }}/backend .
-          docker push ${{ secrets.DOCKER_NAME }}/backend
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backend .
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend
 
       # ✅ FRONTEND (already correct)
       - name: Build & Push Frontend
         run: |
-          docker build -t ${{ secrets.DOCKER_NAME }}/frontend ./frontend
-          docker push ${{ secrets.DOCKER_NAME }}/frontend
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontend
 
       # ✅ DEPLOY TO EC2
       - name: Deploy to EC2
@@ -42,6 +42,6 @@ jobs:
           script: |
             cd ~
             docker-compose down
-            docker pull ${{ secrets.DOCKER_NAME }}/backend
-            docker pull ${{ secrets.DOCKER_NAME }}/frontend
+            docker pull ${{ secrets.DOCKER_USERNAME }}/backend
+            docker pull ${{ secrets.DOCKER_USERNAME }}/frontend
             docker-compose up -d
