@@ -6,8 +6,25 @@ from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
 from dotenv import load_dotenv
 
-env_path = os.path.join(os.path.dirname(__file__), "Backend.env")
-load_dotenv(dotenv_path=env_path)
+# -----------------------------------
+# 🔐 Load Environment Variables
+# -----------------------------------
+# env_path = os.path.join(os.path.dirname(__file__), "Backend.env")
+# 
+from dotenv import load_dotenv
+import os
+
+# Force correct path
+env_path = os.path.join(os.getcwd(), ".env")
+load_dotenv(env_path)
+
+api_key = os.getenv("PINECONE_API_KEY")
+
+print("DEBUG KEY:", api_key)
+
+if not api_key:
+    raise ValueError("❌ PINECONE_API_KEY not found. Check your .env file")
+
 # -----------------------------------
 # 🚀 Initialize FastAPI App
 # -----------------------------------
@@ -29,17 +46,17 @@ app.add_middleware(
 # -----------------------------------
 print("🔄 Connecting to Pinecone...")
 
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-index = pc.Index("product-recommendation")  # your index name
+pc = Pinecone(api_key=api_key)
+index = pc.Index("product-recommendation")  # ✅ make sure this exists in dashboard
 
+print("✅ Connected to Pinecone!")
 
 # -----------------------------------
-# 📦 Load Product Data (optional but useful)
+# 📦 Load Product Data
 # -----------------------------------
 print("🔄 Loading product data...")
 df = pd.read_pickle("product_data.pkl")
 
-# Clean image URLs
 df["Product Image Url"] = (
     df["Product Image Url"]
     .astype(str)
@@ -62,14 +79,12 @@ print("🔄 Loading model...")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # -----------------------------------
-# 🧠 Recommendation Function (PINECONE)
+# 🧠 Recommendation Function
 # -----------------------------------
 def recommend_products(query: str, top_n: int = 8):
 
-    # Convert query → embedding
     query_vector = model.encode(query).tolist()
 
-    # Query Pinecone (only need IDs)
     results = index.query(
         vector=query_vector,
         top_k=top_n,
@@ -79,9 +94,9 @@ def recommend_products(query: str, top_n: int = 8):
     recommendations = []
 
     for match in results["matches"]:
-        idx = int(match["id"])  # 👈 KEY CHANGE
+        idx = int(match["id"])
 
-        product = df.iloc[idx]  # 👈 fetch from dataframe
+        product = df.iloc[idx]
 
         recommendations.append({
             "Product Name": product["Product Name"],
@@ -103,10 +118,7 @@ def home():
 
 
 @app.get("/recommend")
-def recommend(
-    query: str = Query(...),
-    top_n: int = Query(5)
-):
+def recommend(query: str = Query(...), top_n: int = Query(5)):
     try:
         recommendations = recommend_products(query, top_n)
 

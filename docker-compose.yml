@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    container_name: backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PINECONE_API_KEY=pcsk_5nS3mN_JFp4FQ7rvV1xtzhLTv47QQaDY5krkUhKRCt5D8eMfvPhSiSwBj3fAoRjHUUwaQK
+    volumes:
+      - .:/app
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
